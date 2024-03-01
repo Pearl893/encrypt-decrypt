@@ -1,0 +1,36 @@
+#Create a Bash Script in System One
+#!/bin/bash
+WORKDIR="$HOME/system_a"
+mkdir -p $WORKDIR
+WORK="$HOME/system_b"
+mkdir -p $WORK
+PRIVATE_KEY="$WORKDIR/private_key.pem"
+PUBLIC_KEY="$WORKDIR/public_key.pem"
+if [ ! -f "$PRIVATE_KEY" ]; then
+    echo "Generating RSA private key for System A..."
+    openssl genrsa -out "$PRIVATE_KEY" 2048
+    echo "Extracting public key from private key for System A..."
+    openssl rsa -in "$PRIVATE_KEY" -outform PEM -pubout -out "$PUBLIC_KEY"
+fi
+echo "RSA key generation for System A completed."
+sshpass -p "kali" ssh kali@192.168.226.130 "mkdir -p /home/kali/system_a"
+sshpass -p "kali" scp /home/pratikala/system_a/public_key.pem kali@192.168.226.130:/home/kali/system_a/
+PRIVATE_KEY="$WORKDIR/private_key.pem"
+PUBLIC_KEY="$WORKDIR/public_key.pem"
+PUBLIC_KEY_RECIPIENT="$HOME/system_b/public_key.pem"
+DATA="$WORKDIR/data.txt"
+SYMMETRIC_KEY="$WORKDIR/symmetric_key.txt"
+ENCRYPTED_DATA="$WORKDIR/data.enc"
+ENCRYPTED_SYMMETRIC_KEY="$WORKDIR/symmetric_key.enc"
+SIGNATURE="$WORKDIR/data.sig"
+if [ ! -f "$PRIVATE_KEY" ]; then
+    openssl genrsa -out "$PRIVATE_KEY" 2048
+    openssl rsa -in "$PRIVATE_KEY" -pubout -out "$PUBLIC_KEY"
+fi
+openssl rand -base64 32 > "$SYMMETRIC_KEY" 
+echo "This is some secret data" > "$DATA"
+openssl enc -aes-256-cbc -salt -pbkdf2  -in "$DATA" -out "$ENCRYPTED_DATA" -pass file:"$SYMMETRIC_KEY"
+openssl pkeyutl  -encrypt -inkey "$PUBLIC_KEY_RECIPIENT" -pubin -in "$SYMMETRIC_KEY" -out "$ENCRYPTED_SYMMETRIC_KEY"
+openssl dgst -sha256 -sign "$PRIVATE_KEY" -out "$SIGNATURE" "$ENCRYPTED_DATA"
+sshpass -p "kali" ssh kali@192.168.226.130 "mkdir -p system_b"
+sshpass -p  "kali" scp  "$ENCRYPTED_DATA" "$ENCRYPTED_SYMMETRIC_KEY" "$SIGNATURE" kali@192.168.226.130:/home/kali/system_b
