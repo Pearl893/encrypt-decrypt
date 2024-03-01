@@ -1,0 +1,38 @@
+#Create a bash script in system 2
+#!/bin/bash 
+WORKDIR="$HOME/system_b"
+mkdir -p $WORKDIR
+WORK="$HOME/system_a"
+mkdir -p $WORK
+PRIVATE_KEY="$WORKDIR/private_key.pem"
+PUBLIC_KEY="$WORKDIR/public_key.pem" 
+if [ ! -f "$PRIVATE_KEY" ]; then
+    echo "Generating RSA private key for System B..."
+    openssl genrsa -out "$PRIVATE_KEY" 2048
+    echo "Extracting public key from private key for System B..."
+    openssl rsa -in "$PRIVATE_KEY" -outform PEM -pubout -out "$PUBLIC_KEY"
+fi
+
+echo "RSA key generation for System B completed."
+sshpass -p "kali" ssh pratikala@192.168.56.105 " mkdir -p /home/kali/system_b "
+sshpass -p "kali" scp /home/kali/system_b/public_key.pem pratikala@192.168.56.105:/home/pratikala/system_b/
+PRIVATE_KEY="$WORKDIR/private_key.pem"
+PUBLIC_KEY="$WORKDIR/public_key.pem"
+PUBLIC_KEY_SENDER="$HOME/system_a/public_key.pem"
+ENCRYPTED_DATA="$WORKDIR/data.enc"
+ENCRYPTED_SYMMETRIC_KEY="$WORKDIR/symmetric_key.enc"
+SIGNATURE="$WORKDIR/data.sig"
+DECRYPTED_DATA="$WORKDIR/data_decrypted.txt"
+
+if [ ! -f "$PRIVATE_KEY" ]; then
+    openssl genrsa -out "$PRIVATE_KEY" 2048
+    openssl rsa -in "$PRIVATE_KEY" -pubout -out "$PUBLIC_KEY"
+fi
+openssl pkeyutl -decrypt -inkey "$PRIVATE_KEY" -in "$ENCRYPTED_SYMMETRIC_KEY" -out "$WORKDIR/symmetric_key_decrypted.txt"
+openssl enc -d -aes-256-cbc -pbkdf2  -in  "$ENCRYPTED_DATA" -out "$DECRYPTED_DATA" -pass file:"$WORKDIR/symmetric_key_decrypted.txt" 
+openssl dgst -sha256 -verify "$PUBLIC_KEY_SENDER" -signature "$SIGNATURE" "$ENCRYPTED_DATA"
+if [ $? -eq 0 ]; then
+    echo "Signature is valid."
+else
+    echo "Signature is invalid."
+fi
